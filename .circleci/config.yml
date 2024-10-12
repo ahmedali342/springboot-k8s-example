@@ -41,7 +41,7 @@ jobs:
   deploy_to_kubernetes:
     docker:
       - image: cimg/base:2024.10
-    resource_class: large  
+    resource_class: xlarge  
     steps:
       - setup_remote_docker
       - run:
