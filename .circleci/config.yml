@@ -41,15 +41,36 @@ jobs:
           command: |            
             # Push the Docker image with both SHA and "latest" tags to Docker Hub
             docker push ahmedali432/springboot:latest
+jobs:
+  deploy_to_kubernetes:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - setup_remote_docker
       - run:
-          name: Deploy to Kubernetes
+          name: Install Minikube
           command: |
-            # Set up kubectl to interact with your Kubernetes cluster
-            echo $MINIKUBE_KUBECONFIG | base64 -d > ~/.kube/config
-            
-            # Apply Kubernetes manifests
+            curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+            chmod +x minikube
+            sudo mv minikube /usr/local/bin/
+            minikube start --driver=docker
+            minikube kubectl -- get po -A
+      - run:
+          name: Setup Kubeconfig
+          command: |
+            mkdir -p ~/.kube
+            minikube kubectl config view --raw > ~/.kube/config
+            export KUBECONFIG=~/.kube/config
+      - run:
+          command: |
+            # Apply Kubernetes deployment and service YAML
             kubectl apply -f deployment.yaml
             kubectl apply -f service.yaml            
+      - run:
+          name: Verify Deployment
+          command: |
+            kubectl get pods
+            kubectl get services                         
 
 workflows:
   version: 2
@@ -59,3 +80,6 @@ workflows:
           filters:
             branches:
               only: main
+      - deploy_to_kubernetes:
+          requires:
+            - build_push_docker_image
