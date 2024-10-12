@@ -37,7 +37,7 @@ jobs:
           command: |            
             # Push the Docker image with both SHA and "latest" tags to Docker Hub
             docker push ahmedali432/springboot:latest
-jobs:
+
   deploy_to_kubernetes:
     docker:
       - image: circleci/python:3.8
@@ -70,7 +70,7 @@ jobs:
 
 workflows:
   version: 2
-  build_push_docker_image:
+  build_and_deploy:
     jobs:
       - build_push_docker_image:
           filters:
