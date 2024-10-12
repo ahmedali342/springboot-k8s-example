@@ -70,7 +70,7 @@ jobs:
 
 workflows:
   version: 2
-  build_and_push:
+  build_push_docker_image:
     jobs:
       - build_push_docker_image:
           filters:
@@ -78,7 +78,7 @@ workflows:
               only: main
       - deploy_to_kubernetes:
           requires:
-            - build_push_docker_image:
+            - build_push_docker_image
           filters:
             branches:
               only: main            
