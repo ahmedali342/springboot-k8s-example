@@ -41,6 +41,7 @@ jobs:
   deploy_to_kubernetes:
     docker:
       - image: circleci/python:3.8
+    resource_class: xlarge  
     steps:
       - setup_remote_docker
       - run:
