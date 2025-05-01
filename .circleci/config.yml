@@ -19,7 +19,7 @@ jobs:
       - run:
           name: Build Docker image
           command: |
-            # Build a Docker image from the Dockerfile in your repository
+            ## Build a Docker image from the Dockerfile in your repository
             docker build -t ahmedali432/springboot .
       - run:
           name: List Docker images
