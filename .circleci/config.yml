@@ -7,16 +7,15 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Set up Maven and build
-          command: |
-            mvn clean install
-  
+          name: Build with Maven
+          command: mvn clean install
+
       - setup_remote_docker:
           version: 23.0
           docker_layer_caching: true
       
       - run:
-          name: Build and push Docker image
+          name: Build and Push Docker Image
           command: |
             docker build -t ahmedali432/springboot .
             docker tag ahmedali432/springboot ahmedali432/springboot:latest
@@ -30,49 +29,45 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
+      
+      # Install Kind and kubectl
       - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y \
-              curl \
-              conntrack \
-              socat \
-              ebtables
-      - run:
-          name: Install kubectl and Minikube
+          name: Install Kind and kubectl
           command: |
             # Install kubectl
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            
-            # Install Minikube
-            curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-            sudo install minikube-linux-amd64 /usr/local/bin/minikube
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+
+            # Install Kind
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/
+
+      # Create Kind cluster
       - run:
-          name: Start Minikube cluster
+          name: Create Kind Cluster
           command: |
-            minikube start \
-              --driver=docker \
-              --force \
-              --memory=1800mb \
-              --cpus=1 \
-              --kubernetes-version=v1.28.0
-            minikube status
-      - run:
-          name: Configure kubectl
-          command: |
-            mkdir -p ~/.kube
-            minikube kubectl config view --flatten > ~/.kube/config
+            cat <<EOF | kind create cluster --config=-
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+            - role: control-plane
+              extraPortMappings:
+              - containerPort: 30080  # NodePort for your service
+                hostPort: 80
+            EOF
+
             kubectl cluster-info
+
+      # Deploy application
       - run:
-          name: Deploy application
+          name: Deploy to Kubernetes
           command: |
             kubectl apply -f deployment.yaml
             kubectl apply -f service.yaml
-            kubectl get pods -w &
-            sleep 30  # Wait for pods to initialize
-            kubectl get services
+            kubectl wait --for=condition=available deployment/springboot --timeout=120s
+            kubectl get pods,svc
 
 workflows:
   build_and_deploy:
