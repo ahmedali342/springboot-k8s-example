@@ -23,8 +23,8 @@ jobs:
             docker push ahmedali432/springboot:latest
 
   deploy_to_kubernetes:
-    docker:
-      - image: cimg/base:2024.10
+    machine:
+      image: ubuntu-2404:current  # Modern replacement for "machine: true"
     resource_class: medium
     steps:
       - checkout
