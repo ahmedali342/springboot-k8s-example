@@ -23,61 +23,64 @@ jobs:
             docker push ahmedali432/springboot:latest
 
   deploy_to_kubernetes:
-    machine:
-      image: ubuntu-2404:current  # Modern replacement for "machine: true"
-    resource_class: medium
-    steps:
-      - checkout
-      - setup_remote_docker
+      machine:
+        image: ubuntu-2404:current
+      resource_class: medium
+      steps:
+        - checkout
 
-      # Install Kind and kubectl
-      - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y curl
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
+        - run:
+            name: Install dependencies
+            command: |
+              sudo apt-get update
+              sudo apt-get install -y curl docker.io
 
-            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-            chmod +x ./kind
-            sudo mv ./kind /usr/local/bin/
+              curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl
+              sudo mv kubectl /usr/local/bin/
 
-      # Create Kind cluster
-      - run:
-          name: Create Kind Cluster
-          command: |
-            echo 'kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-            - role: control-plane
-              extraPortMappings:
-              - containerPort: 30080
-                hostPort: 80' > kind-config.yaml
+              curl -Lo kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+              chmod +x kind
+              sudo mv kind /usr/local/bin/
 
-            kind create cluster --config=kind-config.yaml --wait 5m
-            kubectl cluster-info
+        - run:
+            name: Ensure Docker is running
+            command: |
+              sudo systemctl start docker
+              docker version
 
-      # Verify cluster connectivity
-      - run:
-          name: Verify Cluster
-          command: |
-            for i in {1..10}; do
-              if kubectl get nodes; then
-                break
-              fi
-              sleep 5
-            done
+        - run:
+            name: Create Kind Cluster
+            command: |
+              echo 'kind: Cluster
+              apiVersion: kind.x-k8s.io/v1alpha4
+              nodes:
+              - role: control-plane
+                extraPortMappings:
+                - containerPort: 30080
+                  hostPort: 80' > kind-config.yaml
 
-      # Deploy application
-      - run:
-          name: Deploy to Kubernetes
-          command: |
-            kubectl apply -f deployment.yaml
-            kubectl apply -f service.yaml
-            kubectl wait --for=condition=available deployment/springboot --timeout=120s
-            kubectl get pods,svc
+              kind create cluster --config=kind-config.yaml --wait 5m
+              kubectl cluster-info
+
+        - run:
+            name: Verify Cluster
+            command: |
+              for i in {1..10}; do
+                if kubectl get nodes; then
+                  break
+                fi
+                sleep 5
+              done
+
+        - run:
+            name: Deploy to Kubernetes
+            command: |
+              kubectl apply -f deployment.yaml
+              kubectl apply -f service.yaml
+              kubectl wait --for=condition=available deployment/springboot --timeout=120s
+              kubectl get pods,svc
+
 
 workflows:
   build_and_deploy:
