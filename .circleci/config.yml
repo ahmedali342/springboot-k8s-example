@@ -5,72 +5,76 @@ jobs:
     docker:
       - image: cimg/openjdk:17.0.10
     steps:
-      - checkout # Pulls the latest code from GitHub
+      - checkout
       - run:
           name: Set up Maven and build
           command: |
-            # Download dependencies and build the Spring Boot application
             mvn clean install
   
       - setup_remote_docker:
-          version: docker23 # Specify the Docker version you want to use
-          docker_layer_caching: true # Optional: speeds up Docker builds      
+          version: 23.0
+          docker_layer_caching: true
       
       - run:
-          name: Build Docker image
+          name: Build and push Docker image
           command: |
-            ## Build a Docker image from the Dockerfile in your repository
             docker build -t ahmedali432/springboot .
-      - run:
-          name: List Docker images
-          command: docker images
-      - run:
-          name: Tag Docker image
-          command: |
-            docker tag ahmedali432/springboot ahmedali432/springboot:latest          
-      - run:
-          name: Docker login
-          command: |
-            echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
-      - run:
-          name: Push Docker image
-          command: |            
-            # Push the Docker image with both SHA and "latest" tags to Docker Hub
+            docker tag ahmedali432/springboot ahmedali432/springboot:latest
+            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
             docker push ahmedali432/springboot:latest
 
   deploy_to_kubernetes:
     docker:
       - image: cimg/base:2024.10
-    resource_class: medium  
+    resource_class: medium
     steps:
+      - checkout
       - setup_remote_docker
       - run:
-          name: Install Minikube
+          name: Install dependencies
           command: |
-            curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-            chmod +x minikube
-            sudo mv minikube /usr/local/bin/
-            minikube start --driver=docker
-            minikube kubectl -- get po -A
+            sudo apt-get update
+            sudo apt-get install -y \
+              curl \
+              conntrack \
+              socat \
+              ebtables
       - run:
-          name: Setup Kubeconfig
+          name: Install kubectl and Minikube
+          command: |
+            # Install kubectl
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            
+            # Install Minikube
+            curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+            sudo install minikube-linux-amd64 /usr/local/bin/minikube
+      - run:
+          name: Start Minikube cluster
+          command: |
+            minikube start \
+              --driver=docker \
+              --force \
+              --memory=1800mb \
+              --cpus=1 \
+              --kubernetes-version=v1.28.0
+            minikube status
+      - run:
+          name: Configure kubectl
           command: |
             mkdir -p ~/.kube
-            minikube kubectl config view --raw > ~/.kube/config
-            export KUBECONFIG=~/.kube/config
+            minikube kubectl config view --flatten > ~/.kube/config
+            kubectl cluster-info
       - run:
+          name: Deploy application
           command: |
-            # Apply Kubernetes deployment and service YAML
             kubectl apply -f deployment.yaml
-            kubectl apply -f service.yaml            
-      - run:
-          name: Verify Deployment
-          command: |
-            kubectl get pods
-            kubectl get services                         
+            kubectl apply -f service.yaml
+            kubectl get pods -w &
+            sleep 30  # Wait for pods to initialize
+            kubectl get services
 
 workflows:
-  version: 2
   build_and_deploy:
     jobs:
       - build_push_docker_image:
@@ -82,4 +86,4 @@ workflows:
             - build_push_docker_image
           filters:
             branches:
-              only: main            
+              only: main
