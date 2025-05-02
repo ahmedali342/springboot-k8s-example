@@ -23,50 +23,54 @@ jobs:
             docker push ahmedali432/springboot:latest
 
   deploy_to_kubernetes:
-    docker:
-      - image: cimg/base:2024.10
-    resource_class: medium
-    steps:
-      - checkout
-      - setup_remote_docker
-      
-      # Install Kind and kubectl
-      - run:
-          name: Install Kind and kubectl
-          command: |
-            # Install kubectl
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-
-            # Install Kind
-            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-            chmod +x ./kind
-            sudo mv ./kind /usr/local/bin/
-
-      # Create Kind cluster (without heredoc)
-      - run:
-          name: Create Kind Cluster
-          command: |
-            echo 'kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-            - role: control-plane
-              extraPortMappings:
-              - containerPort: 30080
-                hostPort: 80' > kind-config.yaml
-            kind create cluster --config=kind-config.yaml
-            kubectl cluster-info
-
-      # Deploy application
-      - run:
-          name: Deploy to Kubernetes
-          command: |
-            kubectl apply -f deployment.yaml
-            kubectl apply -f service.yaml
-            kubectl wait --for=condition=available deployment/springboot --timeout=120s
-            kubectl get pods,svc
-
+              docker:
+                - image: cimg/base:2024.10
+              resource_class: medium
+              steps:
+                - checkout
+                - setup_remote_docker
+                
+                # Install Kind and kubectl
+                - run:
+                    name: Install Kind and kubectl
+                    command: |
+                      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                      chmod +x kubectl
+                      sudo mv kubectl /usr/local/bin/
+          
+                      curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+                      chmod +x ./kind
+                      sudo mv ./kind /usr/local/bin/
+          
+                # Create Kind cluster with readiness check
+                - run:
+                    name: Create and verify Kind Cluster
+                    command: |
+                      # Create config file
+                      echo 'kind: Cluster
+                      apiVersion: kind.x-k8s.io/v1alpha4
+                      nodes:
+                      - role: control-plane
+                        extraPortMappings:
+                        - containerPort: 30080
+                          hostPort: 80' > kind-config.yaml
+          
+                      # Create cluster
+                      kind create cluster --config=kind-config.yaml --wait 5m
+          
+                      # Verify cluster connectivity
+                      kubectl cluster-info
+                      kubectl wait --for=condition=Ready nodes --all --timeout=5m
+                      kubectl get nodes
+          
+                # Deploy application
+                - run:
+                    name: Deploy to Kubernetes
+                    command: |
+                      kubectl apply -f deployment.yaml
+                      kubectl apply -f service.yaml
+                      kubectl wait --for=condition=available deployment/springboot --timeout=120s
+                      kubectl get pods,svc
 workflows:
   build_and_deploy:
     jobs:
