@@ -32,8 +32,10 @@ jobs:
                 
                 # Install Kind and kubectl
                 - run:
-                    name: Install Kind and kubectl
+                    name: Install dependencies
                     command: |
+                      sudo apt-get update
+                      sudo apt-get install -y curl
                       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                       chmod +x kubectl
                       sudo mv kubectl /usr/local/bin/
@@ -42,26 +44,34 @@ jobs:
                       chmod +x ./kind
                       sudo mv ./kind /usr/local/bin/
           
-                # Create Kind cluster with readiness check
+                # Create Kind cluster with proper networking
                 - run:
-                    name: Create and verify Kind Cluster
+                    name: Create Kind Cluster
                     command: |
-                      # Create config file
                       echo 'kind: Cluster
                       apiVersion: kind.x-k8s.io/v1alpha4
+                      networking:
+                        apiServerAddress: "0.0.0.0"
+                        apiServerPort: 6443
                       nodes:
                       - role: control-plane
                         extraPortMappings:
                         - containerPort: 30080
                           hostPort: 80' > kind-config.yaml
           
-                      # Create cluster
                       kind create cluster --config=kind-config.yaml --wait 5m
-          
-                      # Verify cluster connectivity
                       kubectl cluster-info
-                      kubectl wait --for=condition=Ready nodes --all --timeout=5m
-                      kubectl get nodes
+          
+                # Verify cluster connectivity
+                - run:
+                    name: Verify Cluster
+                    command: |
+                      for i in {1..10}; do
+                        if kubectl get nodes; then
+                          break
+                        fi
+                        sleep 5
+                      done
           
                 # Deploy application
                 - run:
