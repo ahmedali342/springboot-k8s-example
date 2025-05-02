@@ -44,20 +44,18 @@ jobs:
             chmod +x ./kind
             sudo mv ./kind /usr/local/bin/
 
-      # Create Kind cluster (FIXED HEREDOC SYNTAX)
+      # Create Kind cluster (without heredoc)
       - run:
           name: Create Kind Cluster
           command: |
-            cat << "EOF" | kind create cluster --config=-
-            kind: Cluster
+            echo 'kind: Cluster
             apiVersion: kind.x-k8s.io/v1alpha4
             nodes:
             - role: control-plane
               extraPortMappings:
               - containerPort: 30080
-                hostPort: 80
-            EOF
-
+                hostPort: 80' > kind-config.yaml
+            kind create cluster --config=kind-config.yaml
             kubectl cluster-info
 
       # Deploy application
