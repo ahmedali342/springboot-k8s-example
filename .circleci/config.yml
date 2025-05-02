@@ -44,17 +44,17 @@ jobs:
             chmod +x ./kind
             sudo mv ./kind /usr/local/bin/
 
-      # Create Kind cluster
+      # Create Kind cluster (FIXED HEREDOC SYNTAX)
       - run:
           name: Create Kind Cluster
           command: |
-            cat <<EOF | kind create cluster --config=-
+            cat << "EOF" | kind create cluster --config=-
             kind: Cluster
             apiVersion: kind.x-k8s.io/v1alpha4
             nodes:
             - role: control-plane
               extraPortMappings:
-              - containerPort: 30080  # NodePort for your service
+              - containerPort: 30080
                 hostPort: 80
             EOF
 
